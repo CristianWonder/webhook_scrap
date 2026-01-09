@@ -2,10 +2,9 @@
 import requests
 import logging
 from typing import Tuple, Optional
-from dotenv import load_dotenv
 import os
 
-load_dotenv()  # Carga el archivo .env
+import config  # Carga configuración según USE_PRODUCTION
 
 ODOO_JSONRPC = os.getenv("ODOO_JSONRPC")
 ODOO_DB = os.getenv("ODOO_DB")

@@ -40,10 +40,10 @@ RUES_BASE_WEB = os.getenv("RUES_BASE_WEB", "https://www.rues.org.co")
 TIMEOUT = int(os.getenv("TIMEOUT", "12"))
 RUES_UA = os.getenv("RUES_USER_AGENT", "Mozilla/5.0 (RUES-Scraper/1.0)")
 
-# Campos Odoo destino (alineados a lo que ya funcionaba)
-ODOO_FIELD_NOMBRE_COMERCIAL = "x_studio_nombre_comercial"
-ODOO_FIELD_FECHA_MATRICULA = "x_studio_fecha_de_matricula"
-ODOO_FIELD_CIIU = "x_studio_ciiu"
+# Campos Odoo destino - se cargan desde config.py según ambiente
+ODOO_FIELD_NOMBRE_COMERCIAL = os.getenv("ODOO_FIELD_NOMBRE_COMERCIAL")
+ODOO_FIELD_FECHA_MATRICULA = os.getenv("ODOO_FIELD_FECHA_MATRICULA")
+ODOO_FIELD_CIIU = os.getenv("ODOO_FIELD_CIIU")
 # ⚠️ Importante: NO usar x_studio_representante_legal_1. Representante legal va a `comment` (HTML).
 
 # (Opcional) Si tienes campos personalizados para cámara, configúralos por ENV. Si no existen, no se usan.

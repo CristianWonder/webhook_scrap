@@ -1,0 +1,49 @@
+﻿============================================================
+python : Traceback (most 
+recent call last):
+En línea: 1 Carácter: 1
++ python 
+test_environments.py 2>&1 | 
+Out-File -Encoding utf8 
+test_resul ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo           
+   : NotSpecified: (Traceba  
+  ck (most recent call las   
+ t)::String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+  File "C:\Users\CristianRuiz
+\OneDrive - WONDERTECH 
+365\Documentos\Python Project
+s\RUES1\test_environments.py"
+, line 242, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "C:\Users\CristianRuiz
+\OneDrive - WONDERTECH 
+365\Documentos\Python Project
+s\RUES1\test_environments.py"
+, line 193, in main
+    print("\U0001f680 SCRIPT 
+DE PRUEBA DE AMBIENTES")
+    ~~~~~^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
+  File "C:\Users\CristianRuiz
+\AppData\Local\Programs\Pytho
+n\Python313\Lib\encodings\cp1
+252.py", line 19, in encode
+    return codecs.charmap_enc
+ode(input,self.errors,encodin
+g_table)[0]
+           ~~~~~~~~~~~~~~~~~~
+~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+UnicodeEncodeError: 
+'charmap' codec can't encode 
+character '\U0001f680' in 
+position 0: character maps 
+to <undefined>
