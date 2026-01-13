@@ -130,7 +130,7 @@ def socrata_headers() -> Dict[str, str]:
 
 def fetch_socrata(nit_base: str) -> Optional[Dict[str, Any]]:
     params = {
-        "$select": "nit,razon_social,sigla,codigo_camara,matricula",
+        "$select": "nit,razon_social,sigla,codigo_camara,matricula,representante_legal",
         "nit": nit_base,
         "$limit": 5,
     }
@@ -455,14 +455,14 @@ def extract_representation_html(soup: BeautifulSoup) -> Optional[str]:
     return f"<div class='rues-representacion-legal'>{inner_html}</div>"
 
 
-def extract_representation_text_fallback(soup: BeautifulSoup) -> str:
+def extract_representation_text_fallback(soup: BeautifulSoup) -> Optional[str]:
     """
     Si no logramos HTML, recorta texto desde 'Representación legal' hasta el siguiente bloque grande.
     """
     txt = soup.get_text("\n", strip=True)
     m = re.search(r"(Representaci[oó]n\s+legal.*)", txt, re.I | re.S)
     if not m:
-        return html_escape(txt[:20000])  # toda la página recortada
+        return None
     block = m.group(1)
     end = re.search(
         r"\n(Actividades?|Actividad econ|Informaci[oó]n|Establecim|Matr[ií]cula|Documentos)\b",
@@ -636,7 +636,8 @@ def fetch_detail_from_web_id(web_id: Any) -> Dict[str, Optional[str]]:
     rep_html = extract_representation_html(s2)
     if not rep_html:
         rep_text_html = extract_representation_text_fallback(soup=s2)
-        rep_html = f"<div class='rues-representacion-legal'>{rep_text_html}</div>"
+        if rep_text_html:
+            rep_html = f"<div class='rues-representacion-legal'>{rep_text_html}</div>"
 
     parsed = {
         "razon_social": razon_social,
@@ -754,6 +755,9 @@ def receive_webhook():
         ciiu = extras.get("ciiu") or ciiu
         representante_legal = extras.get("representante_legal") or representante_legal
 
+        if not representante_legal and row:
+            representante_legal = row.get("representante_legal")
+
         # Fallback CIIU agresivo en el JSON
         if not ciiu:
             ciiu = find_first_ciiu_anywhere(detalle)
@@ -779,16 +783,38 @@ def receive_webhook():
                     )
                     comment_html = comment_html or html_by_id.get("comment_html")
     else:
-        log.warning({"event": "no_detalle_api"})
-        return (
-            jsonify(
-                {
-                    "error": "not_found",
-                    "detail": f"No encontré datos para NIT {nit_digits}",
-                }
-            ),
-            404,
-        )
+        # Fallback: si no hay detalle API, usar datos de Socrata (row) si existen
+        # CRITICAL FIX: Do not return 404 immediately. Use Socrata data.
+        log.warning({"event": "no_detalle_api_using_socrata"})
+        if row:
+            razon_social = row.get("razon_social")
+            sigla = row.get("sigla")
+            # Socrata date format: YYYYMMDD -> YYYY-MM-DD
+            raw_fecha = str(row.get("fecha_matricula") or "")
+            if len(raw_fecha) == 8 and raw_fecha.isdigit():
+                fecha_matricula = f"{raw_fecha[:4]}-{raw_fecha[4:6]}-{raw_fecha[6:]}"
+
+            ciiu = row.get("cod_ciiu_act_econ_pri")
+            representante_legal = row.get("representante_legal")
+            camara_nombre = row.get("camara_comercio")
+            cod_camara = row.get("codigo_camara")
+        else:
+            return (
+                jsonify(
+                    {
+                        "error": "not_found",
+                        "detail": f"No encontré datos para NIT {nit_digits}",
+                    }
+                ),
+                404,
+            )
+
+    if not comment_html and representante_legal:
+        comment_html = f"<div class='rues-representacion-legal'><b>Representante Legal:</b> {representante_legal}</div>"
+
+    # Sanitize comment_html to remove "None" string if it crept in
+    if comment_html and "None" in comment_html:
+        comment_html = comment_html.replace("None", "")
 
     # 5) Si no hay nada para escribir, 404
     if not (razon_social or sigla or fecha_matricula or ciiu or comment_html):
@@ -833,7 +859,42 @@ def receive_webhook():
     log.info(
         {"event": "odoo_write_multi_attempt", "partner_id": partner_id, "vals": vals}
     )
-    ok_write, odoo_response = post_write_multi(partner_id, vals)
+
+    # Retry logic for race condition with Odoo automations
+    max_retries = 3
+    retry_delay = 1  # seconds
+    ok_write = False
+    odoo_response = None
+
+    for attempt in range(max_retries):
+        ok_write, odoo_response = post_write_multi(partner_id, vals)
+
+        # Check if it's a MissingError (record not yet committed)
+        if not ok_write and isinstance(odoo_response, dict):
+            error_data = odoo_response.get("data", {})
+            error_name = error_data.get("name", "")
+
+            if (
+                error_name == "odoo.exceptions.MissingError"
+                and attempt < max_retries - 1
+            ):
+                import time
+
+                log.warning(
+                    {
+                        "event": "odoo_write_retry",
+                        "partner_id": partner_id,
+                        "attempt": attempt + 1,
+                        "retry_in_seconds": retry_delay,
+                        "reason": "Record not yet committed to database",
+                    }
+                )
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                continue
+
+        # Success or non-retryable error
+        break
 
     # Enhanced logging to diagnose production issues
     log.info(
